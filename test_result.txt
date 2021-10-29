@@ -1,0 +1,18 @@
+3000 samples
+inputs:
+"US-based private equity firm General Atlantic is in talks to invest about \
+    $850 million to $950 million in Reliance Industries' digital unit Jio \
+    Platforms, the Bloomberg reported. Saudi Arabia's $320 billion sovereign \
+    wealth fund is reportedly also exploring a potential investment in the \
+    Mukesh Ambani-led company. The 'Public Investment Fund' is looking to \
+    acquire a minority stake in Jio Platforms."
+#  dui
+epochs:5 predict: the the the the the the the the the
+epochs:10 predict: the of and the of and the of and
+epochs:20 predict: the china mainland  xxxxxxxxxxx
+epochs:40 predict: the uk and australia known as a group of huawei's cfo meng wanzhou known as it known as the uk president joe biden known as the uk and australia known as a global financial officer on the uk
+epochs:60 predict: china has been continuously expanding the application of the self reliant industry from huawei and will be generally known as of diplomatic relations following an effort to build a development of industries to build nuclear power plant diplomatic relations
+
+epochs:60
+document:   The 53-minute documentary, , will soon be released to tell the true stories of the working life of eight people from China's Xinjiang region."Among the numerous stories, we chose to shoot more than 10 people and their stories and finally we kept eight in the final version," Zhao Cuiyun, director of the documentary, told the Global Times. Although the eight individuals came from different fields of society, they bear similarities - they all come from southern Xinjiang, crave for a stable job, pay attention to their children's education and long for a better life, said Zhao, noting that before finding the current jobs, they had little vocational skills and were not fluent in Putonghua.However, after a period of trainings, they became capable of their jobs and could also teach others, said Zhao. Zhao said that before making this documentary, her team has made various TV programs in Xinjiang, including , which shows the visits of a Swiss reporter to many places in Xinjiang. It was released in French-spoken regions and audience."In recent years, the West and the US made rumors on Xinjiang, including the so-called forced labor accusations, which is opposite to the truth of Xinjiang. That's why we decided to make a new documentary," Zhao said.The documentary  has French version and it will be translated into more languages for more people in the international community on the true stories of normal workers in Xinjiang. "Many foreign experts who have cooperation with us also think that so-called forced labor accusation toward Xinjiang is one of the tactics of politicians in the West and the US, but some foreign reporters choose to remain silent for the pressure they have faced," Zhao said, noting that arrogance and prejudice cannot be changed immediately, but as a reporter, she hoped more of her foreign counterparts can give up political bias and report China objectively.
+predict:    telling the stories of ordinary residents from northwest china's xinjiang uygur autonomous region but a hard while how soldiers in different countries in different countries in different ideological camps which is in different perspectives have done in the crass
