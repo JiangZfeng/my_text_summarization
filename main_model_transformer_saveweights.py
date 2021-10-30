@@ -24,27 +24,24 @@ EPOCHS = 60
 BUFFER_SIZE = 1000         # shuffle e samples per 1000
 BATCH_SIZE = 64
 
-### Loading Data
 
-# 导入
+#####################################################
+# 导入数据与预处理
+# 导入数据
 news = pd.read_excel("data/news_globaltimes.xlsx")
-
 # 清理数据
 news.drop(['news_id', 'url', 'pub_time', 'article_level_one', 'article_level_two','title'], axis=1, inplace=True)
-
+# 查看数据
 print(news.head())
 print(len(news))
 print(news[news['content'].isnull()])
 news = news.dropna(axis='index',how='any')      # remove the lines that has NaN
-print("###############################")
-print(news.iloc[322])
 print(len(news))
-# 分开
+
 document = news['content']
 summary = news['abstract']
 
-#####################################################
-# 预处理
+
 
 # for decoder sequence     #做标记, 标记开始与结束
 summary = summary.apply(lambda x: '<go> ' + x + ' <stop>')
@@ -58,20 +55,14 @@ filters = '!"#$%&()*+,-./:;=?@[\\]^_`{|}~\t\n'
 oov_token = '<unk>'
 # 标点符号和未知单词的 处理
 
-# 小写化, 根据词频生成词索引
-# 包含了 过滤规则
-# 原文本不需要过滤标点符号,
-# 而目标文本需要
-# 还包含了对文本的分割功能
+
+# 包含对文本过滤, 小写化, 分词, 生成词索引
 document_tokenizer = tf.keras.preprocessing.text.Tokenizer(oov_token=oov_token)
 summary_tokenizer = tf.keras.preprocessing.text.Tokenizer(filters=filters, oov_token=oov_token)
-#
-
 # fit
 document_tokenizer.fit_on_texts(document)
 summary_tokenizer.fit_on_texts(summary)
-
-# 两个tokenizer
+# 将文本索引化
 inputs = document_tokenizer.texts_to_sequences(document)
 targets = summary_tokenizer.texts_to_sequences(summary)
 # 序列化, 变成词列表
@@ -100,31 +91,24 @@ decoder_maxlen = 75
 
 ##################################################################
 # 填充与截断
-
 inputs = tf.keras.preprocessing.sequence.pad_sequences(inputs, maxlen=encoder_maxlen, padding='post', truncating='post')
 targets = tf.keras.preprocessing.sequence.pad_sequences(targets, maxlen=decoder_maxlen, padding='post', truncating='post')# 用post, 向后面填充
 
-### Creating dataset pipeline
 
-inputs = tf.cast(inputs, dtype=tf.int32)# 数据流
+inputs = tf.cast(inputs, dtype=tf.int32)    # 转化为张量
 targets = tf.cast(targets, dtype=tf.int32)
-
-
-#################################################################################
-# TensorFlow 创建数据集的方法?
-# 带打乱 和 batch
+# 生成batch, 打乱数据
 dataset = tf.data.Dataset.from_tensor_slices((inputs, targets)).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
 
 
 
 #################################################################
 # 进行位置编码
+# 在单词之间添加位置编码, 能够使得具有相似性的单词在d维空间中更靠近
 def get_angles(position, i, d_model):
     angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
     return position * angle_rates
-# 无方向的    角度?
-# 在单词之间添加位置编码, 类似于词嵌入?
-
+# 计算位置编码向量
 def positional_encoding(position, d_model):
     # 位置编码  d_model长
     # 获得输入单词间的位置关系
@@ -134,15 +118,12 @@ def positional_encoding(position, d_model):
         np.arange(d_model)[np.newaxis, :],
         d_model
     )
-
-    # apply sin to even indices in the array; 2i
+    # 正弦 2i
     angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
-
-    # apply cos to odd indices in the array; 2i+1
+    # 余弦 2i+1
     angle_rads[:, 1::2] = np.cos(angle_rads[:, 1::2])
 
     pos_encoding = angle_rads[np.newaxis, ...]
-
     return tf.cast(pos_encoding, dtype=tf.float32)
 
 
@@ -164,19 +145,22 @@ def create_look_ahead_mask(size):
 
 # Scaled Dot Product 拓展点乘  计算注意力的核心
 def scaled_dot_product_attention(q, k, v, mask):
-    # 注意力机制的关键运
-    # q,k 进行 矩阵点乘
+    # 即输入q, 根据q 与 k 的相似性找到 最匹配的 v
+    # q,k 进行 矩阵点乘, 得到一个相关性分数
     matmul_qk = tf.matmul(q, k, transpose_b=True)
-    # cast 修改类型,
+    # 得到缩放系数dk
     dk = tf.cast(tf.shape(k)[-1], tf.float32)
-    # 除以 根号dk 缩放
+    # 除以 根号dk(即向量长度) 缩放, 保持梯度的稳定
     scaled_attention_logits = matmul_qk / tf.math.sqrt(dk)
-    # mask
+    # mask, 对尚未考虑的单词遮蔽
     if mask is not None:
         scaled_attention_logits += (mask * -1e9)
-    # 用mask遮蔽, 对注意力做softmax
+
+    # 用mask遮蔽, 对注意力做softmax, 放大差距
     attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1)
+
     # output 是注意力权重矩阵和 矩阵v的乘法
+    # softmax结果与v 点乘, 即对 v 中的单词加权处理
     output = tf.matmul(attention_weights, v)
     # 返回注意力 和 注意力权重
     return output, attention_weights
@@ -199,9 +183,9 @@ class MultiHeadAttention(tf.keras.layers.Layer):
 
         self.depth = d_model // self.num_heads  # 所谓深度, 一个头的数据的维度
 
-        self.wq = tf.keras.layers.Dense(d_model)  # 全连接层
-        self.wk = tf.keras.layers.Dense(d_model)
-        self.wv = tf.keras.layers.Dense(d_model)
+        self.wq = tf.keras.layers.Dense(d_model)    # 全连接层
+        self.wk = tf.keras.layers.Dense(d_model)    # 实际是对应于q,k,v 的权值矩阵
+        self.wv = tf.keras.layers.Dense(d_model)    # 对q,k,v 投影, 可以学习
 
         self.dense = tf.keras.layers.Dense(d_model)
 
@@ -212,7 +196,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         return tf.transpose(x, perm=[0, 2, 1, 3])  # 对列交换顺序? 为什么是0 2 1 3
 
     def call(self, v, k, q, mask):
-        # 输入的v,k,q 相似
+        # 输入的v,k,q 形状相同
         # v,k 是相同的
         batch_size = tf.shape(q)[0]
 
