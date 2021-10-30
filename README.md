@@ -1,4 +1,10 @@
 # abstractive_summarizer
+
+origin_model.py 为原作者模型与相关数据
+main_model_transformer_saveweight.py 为经过修改, 使用自己数据, 并修改为能够保存训练的模型
+predict_transformer.py 为导入训练完成的模型与配置的文件
+
+数据存放于./data
 Abstractive Text Summarization using Transformer
 
 - Implementation of the state of the art Transformer Model from "Attention is all you need", Vaswani et. al.

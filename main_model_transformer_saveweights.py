@@ -164,18 +164,19 @@ def create_look_ahead_mask(size):
 
 # Scaled Dot Product 拓展点乘  计算注意力的核心
 def scaled_dot_product_attention(q, k, v, mask):
-    # 对点乘的修改?
+    # 注意力机制的关键运
+    # q,k 进行 矩阵点乘
     matmul_qk = tf.matmul(q, k, transpose_b=True)
-    # cast 修改类型
+    # cast 修改类型,
     dk = tf.cast(tf.shape(k)[-1], tf.float32)
-    # 除以 dk 缩放
+    # 除以 根号dk 缩放
     scaled_attention_logits = matmul_qk / tf.math.sqrt(dk)
-    # mask 填充字符
+    # mask
     if mask is not None:
         scaled_attention_logits += (mask * -1e9)
-    # 对注意力做softmax
+    # 用mask遮蔽, 对注意力做softmax
     attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1)
-
+    # output 是注意力权重矩阵和 矩阵v的乘法
     output = tf.matmul(attention_weights, v)
     # 返回注意力 和 注意力权重
     return output, attention_weights
@@ -187,7 +188,8 @@ def scaled_dot_product_attention(q, k, v, mask):
 # 多头注意力层   可以并行计算
 class MultiHeadAttention(tf.keras.layers.Layer):
     """多头注意力机制"""
-
+    # muti-head层
+    # 有多个dense层组成
     def __init__(self, d_model, num_heads):
         super(MultiHeadAttention, self).__init__()
         self.num_heads = num_heads
@@ -204,21 +206,27 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         self.dense = tf.keras.layers.Dense(d_model)
 
     def split_heads(self, x, batch_size):  # 将输入的向量reshape为多头
+        # batch = 64 head = 8 depth = 16
+        # 每个序列长度length = -1 ???
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
-        return tf.transpose(x, perm=[0, 2, 1, 3])  # 对列交换顺序?
+        return tf.transpose(x, perm=[0, 2, 1, 3])  # 对列交换顺序? 为什么是0 2 1 3
 
     def call(self, v, k, q, mask):
+        # 输入的v,k,q 相似
+        # v,k 是相同的
         batch_size = tf.shape(q)[0]
 
-        # 变成dmodel 的词向量
+        # 还是dmodel 的词向量
+        # q,k,v 由词嵌入x 分别乘三个对应的权值矩阵得到
         q = self.wq(q)
         k = self.wk(k)
         v = self.wv(v)
 
-        q = self.split_heads(q, batch_size)  # 经过reshape的向量
+        q = self.split_heads(q, batch_size)  # 经过reshape 变成矩阵
         k = self.split_heads(k, batch_size)
         v = self.split_heads(v, batch_size)
-
+        # 进行scaled product
+        # 进行矩阵间的乘法, 分解开就是计算每个词向量 与 其他词向量 的关系, 类似用点乘计算相关性
         scaled_attention, attention_weights = scaled_dot_product_attention(
             q, k, v, mask)
         # 转置, 排列
@@ -250,16 +258,17 @@ class EncoderLayer(tf.keras.layers.Layer):
     def __init__(self, d_model, num_heads, dff, rate=0.1):
         super(EncoderLayer, self).__init__()
 
-        self.mha = MultiHeadAttention(d_model, num_heads)
-        self.ffn = point_wise_feed_forward_network(d_model, dff)  # dff
+        self.mha = MultiHeadAttention(d_model, num_heads)           # mutil-head attention
+        self.ffn = point_wise_feed_forward_network(d_model, dff)  # 逐点前馈网络层
         # 归一化
-        self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)  # 进行层标准化
         self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         # 正则化
-        self.dropout1 = tf.keras.layers.Dropout(rate)
+        self.dropout1 = tf.keras.layers.Dropout(rate)       # 正则化
         self.dropout2 = tf.keras.layers.Dropout(rate)
 
-    def call(self, x, training, mask):
+    def call(self, x, training, mask):  # 调用encoder层
+        # x为词嵌入序列
         # mha层的输出
         attn_output, _ = self.mha(x, x, x, mask)
         attn_output = self.dropout1(attn_output, training=training)
@@ -277,12 +286,14 @@ class EncoderLayer(tf.keras.layers.Layer):
 #### Fundamental Unit of Transformer decoder
 class DecoderLayer(tf.keras.layers.Layer):
     # 解码层
+    # 一个解码层包含一个mutil-head, 一个mask的muti-head, 一个全连接层
+    # 每层后面都有标准化和正则化层
     def __init__(self, d_model, num_heads, dff, rate=0.1):
         super(DecoderLayer, self).__init__()
 
         self.mha1 = MultiHeadAttention(d_model, num_heads)
         self.mha2 = MultiHeadAttention(d_model, num_heads)
-
+        # dmodel为的向量,
         self.ffn = point_wise_feed_forward_network(d_model, dff)
 
         self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
@@ -294,11 +305,14 @@ class DecoderLayer(tf.keras.layers.Layer):
         self.dropout3 = tf.keras.layers.Dropout(rate)
 
     def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
-        attn1, attn_weights_block1 = self.mha1(x, x, x, look_ahead_mask)
+        # 第一个是接收 目标输出的层
+        # 自身各个单词之间的关系, 用lookahead mask
+        attn1, attn_weights_block1 = self.mha1(x, x, x, look_ahead_mask)    # q,k,v都是x
         attn1 = self.dropout1(attn1, training=training)
         out1 = self.layernorm1(attn1 + x)
-
-        attn2, attn_weights_block2 = self.mha2(enc_output, enc_output, out1, padding_mask)
+        # 第二个是 接收编码器输入和目标输出的 层
+        # 编码层输出 与 目标输出的关系, 用padding mask
+        attn2, attn_weights_block2 = self.mha2(enc_output, enc_output, out1, padding_mask)  # q,k,v
         attn2 = self.dropout2(attn2, training=training)
         out2 = self.layernorm2(attn2 + out1)
 
@@ -306,7 +320,7 @@ class DecoderLayer(tf.keras.layers.Layer):
         ffn_output = self.dropout3(ffn_output, training=training)
         out3 = self.layernorm3(ffn_output + out2)
 
-        return out3, attn_weights_block1, attn_weights_block2
+        return out3, attn_weights_block1, attn_weights_block2   # 两个attention
 
 
 
@@ -351,8 +365,8 @@ class Decoder(tf.keras.layers.Layer):
         super(Decoder, self).__init__()
 
         self.d_model = d_model
-        self.num_layers = num_layers
-
+        self.num_layers = num_layers    # 解码器里面有num个 解码层
+        # 进行词嵌入和位置编码
         self.embedding = tf.keras.layers.Embedding(target_vocab_size, d_model)
         self.pos_encoding = positional_encoding(maximum_position_encoding, d_model)
 
@@ -360,10 +374,10 @@ class Decoder(tf.keras.layers.Layer):
         self.dropout = tf.keras.layers.Dropout(rate)
 
     def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
-        seq_len = tf.shape(x)[1]
-        attention_weights = {}
+        seq_len = tf.shape(x)[1]    # 得到序列长度
+        attention_weights = {}      # 注意力权值
 
-        x = self.embedding(x)
+        x = self.embedding(x)       # 进行词嵌入
         x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
 
@@ -372,6 +386,7 @@ class Decoder(tf.keras.layers.Layer):
         for i in range(self.num_layers):
             x, block1, block2 = self.dec_layers[i](x, enc_output, training, look_ahead_mask, padding_mask)
 
+            # 将多个解码层的attention 矩阵结合为一个总的attention词典
             attention_weights['decoder_layer{}_block1'.format(i + 1)] = block1
             attention_weights['decoder_layer{}_block2'.format(i + 1)] = block2
 
@@ -387,12 +402,12 @@ class Transformer(tf.keras.Model):
     def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, target_vocab_size, pe_input, pe_target,
                  rate=0.1):
         super(Transformer, self).__init__()
-
+        # 编码器
         self.encoder = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, pe_input, rate)
-
+        # 解码器
         self.decoder = Decoder(num_layers, d_model, num_heads, dff, target_vocab_size, pe_target, rate)
-
-        self.final_layer = tf.keras.layers.Dense(target_vocab_size)
+        # 最后的全连接层, 计算得到每一步的输出
+        self.final_layer = tf.keras.layers.Dense(target_vocab_size) # 节点数为目标词典大小
 
 
     def call(self, inputs, training ):
@@ -400,14 +415,14 @@ class Transformer(tf.keras.Model):
         # training 是否进行训练, 是否反向传播
         # 前向传播
         inp, tar = inputs
-        enc_padding_mask, look_ahead_mask, dec_padding_mask = create_masks(inp, tar)
-        enc_output = self.encoder(inp, training, enc_padding_mask)  # 编码器的输出
+        enc_padding_mask, look_ahead_mask, dec_padding_mask = create_masks(inp, tar)    # mask不断变化
+        enc_output = self.encoder(inp, training, enc_padding_mask)  # 编码器的输出 编码器的mask
 
         dec_output, attention_weights = self.decoder(tar, enc_output, training, look_ahead_mask, dec_padding_mask)
 
         final_output = self.final_layer(dec_output)
 
-        return final_output, attention_weights
+        return final_output, attention_weights  # 得到最后的输出与所有的attention权重
 
     # write get_config funtion for loading model???
 
@@ -426,12 +441,13 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         self.warmup_steps = warmup_steps
 
     def __call__(self, step):
-        arg1 = tf.math.rsqrt(step)
+        arg1 = tf.math.rsqrt(step)      # 随步数调整?
         arg2 = step * (self.warmup_steps ** -1.5)
 
         # 学习率, 论文中给出的公式
         return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
-learning_rate = CustomSchedule(d_model) # 调用call, 返回lrate
+
+learning_rate = CustomSchedule(d_model) # 调用call, 初始化学习率
 
 ###############################################################################
 # 定义学习率
@@ -496,7 +512,7 @@ def create_masks(inp, tar):  # input  target  根据每次迭代的input 和 tar
 
 ###############################################################################
 # Training steps
-
+# 输入数据的形状 为了能够保存模型model.save()
 train_step_signature = [
     tf.TensorSpec(shape=(None,None),dtype=tf.int32),
     tf.TensorSpec(shape=(None,None),dtype=tf.int32),
@@ -506,12 +522,10 @@ def train_step(inp, tar):
     tar_inp = tar[:, :-1]       # 所有
     tar_real = tar[:, 1:]       # 忽略前面一个
 
-
-
-    with tf.GradientTape() as tape:    # 梯度流 会监控所有可训练的变量
-        predictions, _ = transformer(
-            [inp, tar_inp],          # 输入与目标输出
-            training=True,               # True 表示进行训练
+    with tf.GradientTape() as tape:         # 梯度流 会监控所有可训练的变量
+        predictions, _ = transformer(       # 没有用到权重 _
+            [inp, tar_inp],                 # 输入与目标输出
+            training=True,                  # True 表示进行训练
 
         )
         loss = loss_function(tar_real, predictions)     # 两者对比, 计算loss
@@ -533,7 +547,7 @@ for epoch in range(EPOCHS):
 
     for (batch, (inp, tar)) in enumerate(dataset):
         # 生成数据batch
-        # 输入文本和title, 开始训练
+        # 输入batch个 文本和title, 开始训练
         train_step(inp, tar)
 
         # 55k samples
