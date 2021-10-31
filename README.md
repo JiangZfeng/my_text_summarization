@@ -1,4 +1,5 @@
 # abstractive_summarizer
+# 使用transformer 模型进行文本摘要生成, 参考tensorflow 官方的transformer模型
 
 origin_model.py 为原作者模型与相关数据
 main_model_transformer_saveweight.py 为经过修改, 使用自己数据, 并修改为能够保存训练的模型
