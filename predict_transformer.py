@@ -8,9 +8,9 @@ num_layers = 4      # 编码器 里的 编码层 层数
 d_model = 128       # 词嵌入维度
 dff = 512           # 前馈网络中的节点数
 num_heads = 8       # 多头数
-EPOCHS = 5
+EPOCHS = 20
 # buffer
-BUFFER_SIZE = 20000         # shuffle
+BUFFER_SIZE = 2000         # shuffle
 BATCH_SIZE = 64
 
 
@@ -90,7 +90,7 @@ def summarize(input_document):
 news = pd.read_excel("data/news_globaltimes.xlsx")
 
 # 清理数据
-news.drop(['news_id', 'url', 'pub_time', 'article_level_one', 'article_level_two','title'], axis=1, inplace=True)
+# news.drop(['news_id', 'url', 'pub_time', 'article_level_one', 'article_level_two','title'], axis=1, inplace=True)
 news = news.dropna(axis='index',how='any')
 # 分开
 document = news['content']
@@ -110,8 +110,8 @@ summary_tokenizer.fit_on_texts(summary)
 encoder_vocab_size = len(document_tokenizer.word_index) + 1
 decoder_vocab_size = len(summary_tokenizer.word_index) + 1
 
-encoder_maxlen = 400
-decoder_maxlen = 75
+encoder_maxlen = 1500
+decoder_maxlen = 300
 
 ret = summarize(test_text)
 print(ret)

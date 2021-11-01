@@ -45,9 +45,9 @@ decoder_vocab_size = len(summary_tokenizer.word_index) + 1
 document_lengths = pd.Series([len(x) for x in document])
 summary_lengths = pd.Series([len(x) for x in summary])
 
-document_lengths.describe()
+print(document_lengths.describe())
 
-summary_lengths.describe()
+print(summary_lengths.describe())
 
 # maxlen
 # taking values > and round figured to 75th percentile

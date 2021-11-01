@@ -14,14 +14,14 @@ num_layers = 4      # 编码器 里的 编码层 层数
 d_model = 128       # 词嵌入维度
 dff = 512           # 前馈网络中的节点数
 num_heads = 8       # 多头数
-EPOCHS = 60
+EPOCHS = 20
 # 3000 samples   too less to training
 # epoch 5   all outputs  are   <the>
 # epoch 10  outputs  art     <the>  <and> <us> <of>
 # epoch 20  0-15 words is ok, but rest words is repeated
 
 # buffer
-BUFFER_SIZE = 1000         # shuffle e samples per 1000
+BUFFER_SIZE = 2000         # shuffle e samples per 1000
 BATCH_SIZE = 64
 
 
@@ -30,7 +30,7 @@ BATCH_SIZE = 64
 # 导入数据
 news = pd.read_excel("data/news_globaltimes.xlsx")
 # 清理数据
-news.drop(['news_id', 'url', 'pub_time', 'article_level_one', 'article_level_two','title'], axis=1, inplace=True)
+# news.drop(['news_id', 'url', 'pub_time', 'article_level_one', 'article_level_two','title'], axis=1, inplace=True)
 # 查看数据
 print(news.head())
 print(len(news))
@@ -45,7 +45,8 @@ summary = news['abstract']
 
 # for decoder sequence     #做标记, 标记开始与结束
 summary = summary.apply(lambda x: '<go> ' + x + ' <stop>')
-
+print(document.describe())
+print(summary.describe())
 
 
 #########################################################
@@ -76,17 +77,20 @@ decoder_vocab_size = len(summary_tokenizer.word_index) + 1
 
 ##############################################################
 # 对数据做一个简单的观察
-
-document_lengths = pd.Series([len(x) for x in document])
-summary_lengths = pd.Series([len(x) for x in summary])
-# 每篇文章长度
-
-document_lengths.describe()
-summary_lengths.describe()
+#
+# document_lengths = pd.Series([len(x) for x in document])
+# summary_lengths = pd.Series([len(x) for x in summary])
+# # 每篇文章长度
+#
+# print("describe document: ", document_lengths.describe())
+# print("describe summary: ", summary_lengths.describe())
 
 # 根据前面的统计, 设置合适的长度
-encoder_maxlen = 400
-decoder_maxlen = 75
+# he mean length of inputs is 3000
+# the mean length of outputs is 300
+# but the memory is exhausted, so change the maxlen
+encoder_maxlen = 800
+decoder_maxlen = 80
 
 
 ##################################################################
@@ -524,6 +528,7 @@ def train_step(inp, tar):
 
 #############################################################
 # 训练过程
+loss_list = {}
 for epoch in range(EPOCHS):
     start = time.time()
 
@@ -538,18 +543,21 @@ for epoch in range(EPOCHS):
         # we display 3 batch results -- 0th, middle and last one (approx)
         # 55k / 64 ~ 858; 858 / 2 = 429
         # 为什么除2,
-        if batch % 429 == 0:  # 0 429 858 三次
+        if batch % 100 == 0:  # 0 429 858 三次
             print('Epoch {} Batch {} Loss {:.4f}'.format(epoch + 1, batch, train_loss.result()))
 
     if (epoch + 1) % 2 == 0:        # 两代保存一次
         # transformer.save('path_to_saved_model', save_format='tf') ot work
         # cannot overwrite the save_model ???
         print('epoch {} '.format(epoch + 1))
+        loss_list[str(epoch + 1)] = train_loss.result()
 
     print('Epoch {} Loss {:.4f}'.format(epoch + 1, train_loss.result()))
 
     print('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
 transformer.save('saved_model_dir', save_format='tf')
+np.save("results/loss_result_epochs_20", loss_list)
+
 #transformer.save('saved_model_dir/model.h5')
 
 
