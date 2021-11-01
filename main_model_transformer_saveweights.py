@@ -5,7 +5,7 @@ import tensorflow as tf
 import time
 import re
 import pickle
-
+import tensorflow_text as text
 ###########################################
 # 超参数设置
 # hyper-params
@@ -90,7 +90,7 @@ decoder_vocab_size = len(summary_tokenizer.word_index) + 1
 # the mean length of outputs is 300
 # but the memory is exhausted, so change the maxlen
 encoder_maxlen = 800
-decoder_maxlen = 80
+decoder_maxlen = 70
 
 
 ##################################################################
@@ -435,10 +435,10 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         # 学习率, 论文中给出的公式
         return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
 
-learning_rate = CustomSchedule(d_model) # 调用call, 初始化学习率
 
 ###############################################################################
 # 定义学习率
+learning_rate = CustomSchedule(d_model) # 调用call, 初始化学习率
 optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
 loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
@@ -455,8 +455,18 @@ def loss_function(real, pred):
     return tf.reduce_sum(loss_)/tf.reduce_sum(mask)     # 求和???
 
 # metrics
-train_loss = tf.keras.metrics.Mean(name='train_loss')
+def accuracy_function(real,pred):
+    accuracies = tf.equal(real, tf.argmax(pred, axis=2))
 
+    mask = tf.math.logical_not(tf.math.equal(real, 0))
+    accuracies = tf.math.logical_and(mask, accuracies)
+
+    accuracies = tf.cast(accuracies, dtype=tf.float32)
+    mask = tf.cast(mask, dtype=tf.float32)
+    return tf.reduce_sum(accuracies) / tf.reduce_sum(mask)
+
+train_loss = tf.keras.metrics.Mean(name='train_loss')
+train_accuracy = tf.keras.metrics.Mean(name='train_accuracy')
 
 #################################################################################
 # 定义transformer
@@ -508,7 +518,7 @@ train_step_signature = [
 @tf.function(input_signature=train_step_signature)    # 高性能模式  静态图
 def train_step(inp, tar):
     tar_inp = tar[:, :-1]       # 所有
-    tar_real = tar[:, 1:]       # 忽略前面一个
+    tar_real = tar[:, 1:]       # 忽略第一个开始的标志
 
     with tf.GradientTape() as tape:         # 梯度流 会监控所有可训练的变量
         predictions, _ = transformer(       # 没有用到权重 _
@@ -523,40 +533,41 @@ def train_step(inp, tar):
     # 将训练结果apply?
 
     train_loss(loss)        # 定义的损失函数object
-
+    train_accuracy(accuracy_function(tar_real, predictions))
 
 
 #############################################################
 # 训练过程
-loss_list = {}
+loss_list = []
+accuracy_list = []
 for epoch in range(EPOCHS):
     start = time.time()
 
     train_loss.reset_states()  # ???
+    train_accuracy.reset_states()
 
     for (batch, (inp, tar)) in enumerate(dataset):
         # 生成数据batch
         # 输入batch个 文本和title, 开始训练
         train_step(inp, tar)
 
-        # 55k samples
-        # we display 3 batch results -- 0th, middle and last one (approx)
-        # 55k / 64 ~ 858; 858 / 2 = 429
-        # 为什么除2,
-        if batch % 100 == 0:  # 0 429 858 三次
-            print('Epoch {} Batch {} Loss {:.4f}'.format(epoch + 1, batch, train_loss.result()))
 
-    if (epoch + 1) % 2 == 0:        # 两代保存一次
-        # transformer.save('path_to_saved_model', save_format='tf') ot work
-        # cannot overwrite the save_model ???
-        print('epoch {} '.format(epoch + 1))
-        loss_list[str(epoch + 1)] = train_loss.result()
+        if batch % 50 == 0:  #
+            print(f'Epoch {epoch + 1} Batch {batch} Loss {train_loss.result():.4f} Accuracy {train_accuracy.result():.4f}')
 
-    print('Epoch {} Loss {:.4f}'.format(epoch + 1, train_loss.result()))
+    # if (epoch + 1) % 2 == 0:        # 两代保存一次
+    #     # transformer.save('path_to_saved_model', save_format='tf') ot work
+    #     # cannot overwrite the save_model ???
+    #     print('epoch {} '.format(epoch + 1))
+        loss_list.append(train_loss.result())
+        accuracy_list.append(train_accuracy.result())
 
+    print(f'Epoch {epoch + 1} Loss {train_loss.result():.4f} Accuracy {train_accuracy.result():.4f}')
     print('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
+
 transformer.save('saved_model_dir', save_format='tf')
 np.save("results/loss_result_epochs_20", loss_list)
+np.save("results/acc_result_epochs_20", accuracy_list)
 
 #transformer.save('saved_model_dir/model.h5')
 
