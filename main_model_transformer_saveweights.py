@@ -5,7 +5,7 @@ import tensorflow as tf
 import time
 import re
 import pickle
-import tensorflow_text as text
+# import tensorflow_text as text
 ###########################################
 # 超参数设置
 # hyper-params
@@ -22,13 +22,13 @@ EPOCHS = 20
 
 # buffer
 BUFFER_SIZE = 2000         # shuffle e samples per 1000
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 
 
 #####################################################
 # 导入数据与预处理
 # 导入数据
-news = pd.read_excel("data/news_globaltimes.xlsx")
+news = pd.read_excel("data/news_lessthan_500words.xlsx")
 # 清理数据
 # news.drop(['news_id', 'url', 'pub_time', 'article_level_one', 'article_level_two','title'], axis=1, inplace=True)
 # 查看数据
@@ -89,7 +89,8 @@ decoder_vocab_size = len(summary_tokenizer.word_index) + 1
 # he mean length of inputs is 3000
 # the mean length of outputs is 300
 # but the memory is exhausted, so change the maxlen
-encoder_maxlen = 800
+# 发现本模型对于太长的文本序列无能为力, 生成的结果牛头不对马嘴, 改成 maxlen=500
+encoder_maxlen = 500
 decoder_maxlen = 70
 
 
@@ -456,7 +457,8 @@ def loss_function(real, pred):
 
 # metrics
 def accuracy_function(real,pred):
-    accuracies = tf.equal(real, tf.argmax(pred, axis=2))
+    # pred = tf.convert_to_tensor(pred,dtype=tf.int32)
+    accuracies = tf.equal(real, tf.cast(tf.argmax(pred, axis=2), dtype=tf.int32))
 
     mask = tf.math.logical_not(tf.math.equal(real, 0))
     accuracies = tf.math.logical_and(mask, accuracies)
@@ -533,7 +535,7 @@ def train_step(inp, tar):
     # 将训练结果apply?
 
     train_loss(loss)        # 定义的损失函数object
-    train_accuracy(accuracy_function(tar_real, predictions))
+    train_accuracy(accuracy_function(tar_real, predictions)) # tar: int32  pred: float32
 
 
 #############################################################
