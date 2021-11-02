@@ -89,7 +89,9 @@ decoder_vocab_size = len(summary_tokenizer.word_index) + 1
 # he mean length of inputs is 3000
 # the mean length of outputs is 300
 # but the memory is exhausted, so change the maxlen
-# 发现本模型对于太长的文本序列无能为力, 生成的结果牛头不对马嘴, 改成 maxlen=500
+# 发现本模型对于太长的文本序列无能为力, 生成的结果牛头不对马嘴,
+# 方法1: 改成 maxlen=500, 减小文本长度
+# 方法2: 增加epochs , eopch = 50 100
 encoder_maxlen = 500
 decoder_maxlen = 70
 

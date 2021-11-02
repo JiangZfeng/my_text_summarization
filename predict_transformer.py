@@ -11,7 +11,7 @@ num_heads = 8       # 多头数
 EPOCHS = 20
 # buffer
 BUFFER_SIZE = 2000         # shuffle
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 
 
 test_text = []
@@ -87,7 +87,7 @@ def summarize(input_document):
 
 
 
-news = pd.read_excel("data/news_globaltimes.xlsx")
+news = pd.read_excel("data/news_lessthan_500words.xlsx")
 
 # 清理数据
 # news.drop(['news_id', 'url', 'pub_time', 'article_level_one', 'article_level_two','title'], axis=1, inplace=True)
@@ -110,8 +110,8 @@ summary_tokenizer.fit_on_texts(summary)
 encoder_vocab_size = len(document_tokenizer.word_index) + 1
 decoder_vocab_size = len(summary_tokenizer.word_index) + 1
 
-encoder_maxlen = 1500
-decoder_maxlen = 300
+encoder_maxlen = 500
+decoder_maxlen = 70
 
 ret = summarize(test_text)
 print(ret)
